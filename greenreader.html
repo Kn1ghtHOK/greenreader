@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Green Reader</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--accent:#b8f57a;--red:#ff5a5a;--blue:#5ab4ff;--text:#d4e8c2;--muted:#6a8a5a;--panel:rgba(5,13,5,0.94)}
+  html,body{width:100%;height:100%;background:#6fa5c4;overflow:hidden;touch-action:none}
+  #app{width:100%;height:100dvh;display:flex;flex-direction:column;position:relative}
+  #canvas-wrap{flex:1;position:relative;min-height:0}
+  #c{width:100%;height:100%;display:block}
+  #aim-canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  #topbar{position:absolute;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;justify-content:space-between;padding:10px 14px 6px;background:linear-gradient(to bottom,rgba(3,8,3,0.97) 55%,transparent);pointer-events:none}
+  #topbar h1{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:3px;color:var(--accent);text-shadow:0 0 16px rgba(184,245,122,0.35)}
+  .top-stats{display:flex;gap:14px}
+  .tstat-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px}
+  .tstat-val{font-family:'DM Mono',monospace;font-size:13px;color:var(--text);font-weight:500}
+  #hint{position:absolute;z-index:5;pointer-events:none;font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;line-height:1.9;text-align:right;top:52px;right:12px}
+  #panel{position:relative;z-index:20;background:var(--panel);border-top:1px solid rgba(184,245,122,0.1);backdrop-filter:blur(14px);padding:10px 16px 12px}
+  #panel-inner{max-width:960px;margin:0 auto;display:flex;align-items:center;gap:18px}
+  .section-label{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);letter-spacing:2px;margin-bottom:5px}
+  #diff-row{display:flex;gap:4px}
+  .diff-btn{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;padding:5px 9px;border-radius:3px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s}
+  .diff-btn.active{background:rgba(184,245,122,0.12);border-color:var(--accent);color:var(--accent)}
+  .spd-btn{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:1px;padding:5px 9px;border-radius:3px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s}
+  .spd-btn.active{background:rgba(90,180,255,0.12);border-color:var(--blue);color:var(--blue)}
+  #power-block{display:flex;align-items:center;gap:10px;flex:1;min-width:160px;max-width:300px}
+  #power-num{font-family:'Bebas Neue',sans-serif;font-size:30px;color:var(--accent);min-width:52px;text-align:center;line-height:1}
+  #power-unit{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);text-align:center}
+  #power-slider-wrap{flex:1}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:3px;outline:none;cursor:pointer;background:linear-gradient(to right,#4ade80,#b8f57a 50%,#fad03a)}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;margin-top:-8px;background:#fff;box-shadow:0 0 8px rgba(184,245,122,.7);cursor:grab}
+  input[type=range]:active::-webkit-slider-thumb{cursor:grabbing}
+  input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:linear-gradient(to right,#4ade80,#b8f57a 50%,#fad03a)}
+  input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;border:none;background:#fff;box-shadow:0 0 8px rgba(184,245,122,.7);cursor:grab}
+  #btn-group{display:flex;gap:6px;align-items:center}
+  .btn{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;padding:7px 13px;border-radius:4px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer;transition:all .15s;white-space:nowrap}
+  .btn:hover{background:rgba(255,255,255,.11)}
+  .btn.putt{background:var(--accent);color:#0a1a0a;border-color:var(--accent);font-size:11px;font-weight:500;padding:7px 18px;box-shadow:0 0 16px rgba(184,245,122,.3)}
+  .btn.putt:hover{background:#d0ffaa}
+  .btn.putt:disabled{opacity:.3;cursor:not-allowed;box-shadow:none}
+  .btn.ideal-on{border-color:var(--blue);color:var(--blue)}
+  #msg{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);flex:1;min-width:80px;line-height:1.4}
+  #msg.good{color:var(--accent)}
+  #msg.bad{color:var(--red)}
+  #result-row{max-width:960px;margin:5px auto 0;display:none;gap:14px;flex-wrap:wrap}
+  .rstat{font-family:'DM Mono',monospace;font-size:9px}
+  .rstat-l{color:var(--muted);margin-right:3px}
+  .rstat-v{color:var(--text)}
+  body.is-mobile #topbar h1{font-size:16px}
+  body.is-mobile .tstat-val{font-size:11px}
+  body.is-mobile .top-stats{gap:10px}
+  body.is-mobile #hint{display:none}
+  body.is-mobile #panel{padding:8px 12px 10px}
+  body.is-mobile #panel-inner{flex-direction:column;align-items:stretch;gap:8px}
+  body.is-mobile #power-block{max-width:none;min-width:0}
+  body.is-mobile #power-num{font-size:24px;min-width:40px}
+  body.is-mobile input[type=range]{height:8px}
+  body.is-mobile input[type=range]::-webkit-slider-thumb{width:28px;height:28px;margin-top:-10px}
+  body.is-mobile input[type=range]::-moz-range-thumb{width:28px;height:28px}
+  body.is-mobile .diff-btn{font-size:10px;padding:7px 12px}
+  body.is-mobile #btn-group{gap:5px}
+  body.is-mobile .btn{flex:1;text-align:center;padding:11px 4px;font-size:10px}
+  body.is-mobile .btn.putt{flex:1.4;font-size:11px}
+  body.is-mobile #msg{text-align:center;font-size:10px}
+  body.is-mobile #mobile-top{display:flex;gap:12px;align-items:flex-end}
+  #mobile-top{display:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <h1>Green Reader</h1>
+    <div class="top-stats">
+      <div class="tstat"><div class="tstat-label">AIM</div><div class="tstat-val" id="s-aim">—</div></div>
+      <div class="tstat"><div class="tstat-label">IDEAL</div><div class="tstat-val" id="s-ideal">—</div></div>
+      <div class="tstat"><div class="tstat-label">RESULT</div><div class="tstat-val" id="s-res">—</div></div>
+    </div>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="c"></canvas>
+    <canvas id="aim-canvas"></canvas>
+    <div id="hint">DRAG · ORBIT<br>SCROLL · ZOOM<br>CLICK · AIM</div>
+  </div>
+  <div id="panel">
+    <div id="panel-inner">
+      <div id="desktop-diff">
+        <div style="display:flex;gap:14px">
+          <div>
+            <div class="section-label">BREAK</div>
+            <div id="diff-row">
+              <button class="diff-btn active" data-d="easy">GENTLE</button>
+              <button class="diff-btn" data-d="medium">MEDIUM</button>
+              <button class="diff-btn" data-d="hard">NASTY</button>
+            </div>
+          </div>
+          <div>
+            <div class="section-label">SPEED</div>
+            <div id="speed-row">
+              <button class="spd-btn" data-s="slow">SLOW</button>
+              <button class="spd-btn active" data-s="medium">MED</button>
+              <button class="spd-btn" data-s="fast">FAST</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="power-block">
+        <div><div id="power-num">55</div><div id="power-unit">%</div></div>
+        <div id="power-slider-wrap">
+          <div class="section-label">POWER</div>
+          <input type="range" id="power-range" min="5" max="100" value="55" step="1">
+        </div>
+      </div>
+      <div id="mobile-top">
+        <div style="display:flex;gap:10px">
+          <div>
+            <div class="section-label">BREAK</div>
+            <div style="display:flex;gap:3px">
+              <button class="diff-btn active" data-d="easy">EASY</button>
+              <button class="diff-btn" data-d="medium">MED</button>
+              <button class="diff-btn" data-d="hard">HARD</button>
+            </div>
+          </div>
+          <div>
+            <div class="section-label">SPEED</div>
+            <div style="display:flex;gap:3px">
+              <button class="spd-btn" data-s="slow">SLOW</button>
+              <button class="spd-btn active" data-s="medium">MED</button>
+              <button class="spd-btn" data-s="fast">FAST</button>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1">
+          <div class="section-label">POWER — <span id="power-num-m">55</span>%</div>
+          <input type="range" id="power-range-m" min="5" max="100" value="55" step="1" style="width:100%;margin-top:5px">
+        </div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+        <div id="btn-group">
+          <button class="btn putt" id="btn-putt" disabled>PUTT</button>
+          <button class="btn" id="btn-ideal">IDEAL LINE</button>
+          <button class="btn" id="btn-new">NEW GREEN</button>
+          <button class="btn" id="btn-reset">RESET</button>
+        </div>
+        <div id="msg">Click the green to set your aim point</div>
+      </div>
+    </div>
+    <div id="result-row">
+      <div class="rstat"><span class="rstat-l">YOUR AIM</span><span class="rstat-v" id="r-aim">—</span></div>
+      <div class="rstat"><span class="rstat-l">IDEAL AIM</span><span class="rstat-v" id="r-ideal">—</span></div>
+      <div class="rstat"><span class="rstat-l">DIST TO HOLE</span><span class="rstat-v" id="r-dist">—</span></div>
+    </div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ─── DEVICE ───────────────────────────────────────────────────────────────────
+const isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || window.innerWidth <= 640;
+if (isMobile) {
+  document.body.classList.add('is-mobile');
+  document.getElementById('mobile-top').style.display = 'flex';
+  document.getElementById('desktop-diff').style.display = 'none';
+  document.getElementById('power-block').style.display = 'none';
+}
+
+// ─── POWER SLIDER ─────────────────────────────────────────────────────────────
+let strength = 55;
+function setStrength(v) {
+  strength = Math.max(5, Math.min(100, Math.round(+v)));
+  document.getElementById('power-range').value = strength;
+  document.getElementById('power-range-m').value = strength;
+  document.getElementById('power-num').textContent = strength;
+  document.getElementById('power-num-m').textContent = strength;
+}
+document.getElementById('power-range').addEventListener('input', e => setStrength(e.target.value));
+document.getElementById('power-range-m').addEventListener('input', e => setStrength(e.target.value));
+
+// ─── DIFFICULTY + SPEED ───────────────────────────────────────────────────────
+function getActiveDiff() { return (document.querySelector('.diff-btn.active') || {}).dataset?.d || 'easy'; }
+function getActiveSpeed() { return (document.querySelector('.spd-btn.active') || {}).dataset?.s || 'medium'; }
+document.querySelectorAll('.diff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll(`.diff-btn[data-d="${btn.dataset.d}"]`).forEach(b => b.classList.add('active'));
+  });
+});
+document.querySelectorAll('.spd-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.spd-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll(`.spd-btn[data-s="${btn.dataset.s}"]`).forEach(b => b.classList.add('active'));
+  });
+});
+
+// ─── RENDERER ─────────────────────────────────────────────────────────────────
+const container = document.getElementById('canvas-wrap');
+const canvas3d  = document.getElementById('c');
+const aimCanvas = document.getElementById('aim-canvas');
+const aimCtx    = aimCanvas.getContext('2d');
+
+const renderer = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: !isMobile });
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.5 : 2));
+renderer.setClearColor(0x8cb8d8, 1);
+
+const scene = new THREE.Scene();
+// Soft sky-blue fog that bleeds into the horizon
+scene.fog = new THREE.FogExp2(0x8cb8d8, 0.005);
+
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 400);
+let orbitTheta = 0.1, orbitPhi = 0.52, orbitR = isMobile ? 38 : 30;
+const orbitTarget = new THREE.Vector3(0, 0.5, 0);
+
+function updateCamera() {
+  camera.position.x = orbitTarget.x + orbitR * Math.sin(orbitTheta) * Math.cos(orbitPhi);
+  camera.position.y = orbitTarget.y + orbitR * Math.sin(orbitPhi);
+  camera.position.z = orbitTarget.z + orbitR * Math.cos(orbitTheta) * Math.cos(orbitPhi);
+  camera.lookAt(orbitTarget);
+}
+updateCamera();
+
+function resize() {
+  const w = container.clientWidth, h = container.clientHeight;
+  renderer.setSize(w, h);
+  aimCanvas.width = w; aimCanvas.height = h;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ─── LIGHTING ────────────────────────────────────────────────────────────────
+// Sky/ground hemisphere
+scene.add(new THREE.HemisphereLight(0x9fd6f5, 0x3a7a2a, 0.9));
+
+const sun = new THREE.DirectionalLight(0xfff0c0, 1.9);
+sun.position.set(18, 30, 14);
+sun.castShadow = true;
+sun.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
+sun.shadow.camera.left = -50; sun.shadow.camera.right = 50;
+sun.shadow.camera.top  =  50; sun.shadow.camera.bottom = -50;
+sun.shadow.camera.far  = 120;
+sun.shadow.bias = -0.001;
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0x7799cc, 0.18);
+fill.position.set(-14, 8, -16);
+scene.add(fill);
+
+// ─── SKY DOME (built once) ────────────────────────────────────────────────────
+(function buildSky() {
+  const geo = new THREE.SphereGeometry(300, 32, 20);
+  const cnt = geo.attributes.position.count;
+  const colors = new Float32Array(cnt * 3);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < cnt; i++) {
+    const y = pos.getY(i);
+    // t = 0 at horizon, 1 at zenith
+    const t = Math.max(0, Math.min(1, (y + 30) / 310));
+    // Horizon: soft hazy light blue. Zenith: deep azure.
+    colors[i*3]   = 0.54 - t * 0.26;  // R
+    colors[i*3+1] = 0.75 - t * 0.18;  // G
+    colors[i*3+2] = 0.88 - t * 0.06;  // B
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.scale(-1, 1, 1); // flip normals inward
+  scene.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, depthWrite: false })));
+
+  // Simple cloud sprites scattered around upper sky
+  const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false });
+  for (let c = 0; c < 12; c++) {
+    const cGrp = new THREE.Group();
+    const ang = (c / 12) * Math.PI * 2 + Math.random() * 0.5;
+    const r = 180 + Math.random() * 60;
+    const ht = 60 + Math.random() * 60;
+    cGrp.position.set(Math.cos(ang) * r, ht, Math.sin(ang) * r);
+    for (let b = 0; b < 4; b++) {
+      const blob = new THREE.Mesh(
+        new THREE.SphereGeometry(8 + Math.random() * 10, 7, 5),
+        cloudMat
+      );
+      blob.position.set((Math.random()-0.5)*18, (Math.random()-0.5)*5, (Math.random()-0.5)*12);
+      cGrp.add(blob);
+    }
+    scene.add(cGrp);
+  }
+})();
+
+// ─── ORBIT + INPUT ───────────────────────────────────────────────────────────
+let isDragging = false, lastMx = 0, lastMy = 0, dragMoved = false;
+function orbitStart(x,y){ isDragging=true; dragMoved=false; lastMx=x; lastMy=y; }
+function orbitMove(x,y){
+  if(!isDragging) return;
+  if(Math.hypot(x-lastMx,y-lastMy)>3) dragMoved=true;
+  orbitTheta -= (x-lastMx)*0.007;
+  orbitPhi = Math.max(0.1, Math.min(1.1, orbitPhi-(y-lastMy)*0.007));
+  lastMx=x; lastMy=y; updateCamera();
+}
+canvas3d.addEventListener('mousedown', e => orbitStart(e.clientX,e.clientY));
+window.addEventListener('mousemove',   e => { if(isDragging) orbitMove(e.clientX,e.clientY); });
+window.addEventListener('mouseup',     () => { isDragging=false; });
+canvas3d.addEventListener('wheel', e => { orbitR=Math.max(8,Math.min(80,orbitR+e.deltaY*0.05)); updateCamera(); },{passive:true});
+canvas3d.addEventListener('contextmenu', e=>e.preventDefault());
+canvas3d.addEventListener('click', e => { if(!dragMoved) handleAim(e.clientX,e.clientY); });
+
+let lastPinch=0;
+canvas3d.addEventListener('touchstart', e=>{
+  if(e.touches.length===1) orbitStart(e.touches[0].clientX,e.touches[0].clientY);
+  if(e.touches.length===2) lastPinch=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+},{passive:true});
+canvas3d.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  if(e.touches.length===1) orbitMove(e.touches[0].clientX,e.touches[0].clientY);
+  if(e.touches.length===2){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    orbitR=Math.max(8,Math.min(80,orbitR-(d-lastPinch)*0.07)); lastPinch=d; updateCamera();
+  }
+},{passive:false});
+canvas3d.addEventListener('touchend', e=>{
+  isDragging=false;
+  if(!dragMoved&&e.changedTouches.length===1) handleAim(e.changedTouches[0].clientX,e.changedTouches[0].clientY);
+},{passive:true});
+
+// ─── TEXTURES ────────────────────────────────────────────────────────────────
+function makeGreenTexture() {
+  const size = 512, c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+
+  // Base: deep Augusta bentgrass
+  ctx.fillStyle = '#1e4d28';
+  ctx.fillRect(0, 0, size, size);
+
+  // Mow stripes — alternating bands, just ~4% tonal difference
+  const stripeW = 48;
+  for (let i = 0; i < size / stripeW; i++) {
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(0,0,0,0.0)' : 'rgba(255,255,255,0.04)';
+    ctx.fillRect(0, i * stripeW, size, stripeW);
+  }
+
+  // Fine grain stipple
+  for (let i = 0; i < 80000; i++) {
+    const x = Math.random() * size, y = Math.random() * size;
+    if (Math.random() < 0.5) {
+      ctx.fillStyle = `rgba(48,98,55,${0.04 + Math.random()*0.07})`;
+    } else {
+      ctx.fillStyle = `rgba(6,22,10,${0.04 + Math.random()*0.08})`;
+    }
+    ctx.fillRect(x, y, 1, 1);
+  }
+
+  // Faint dew sheen
+  for (let i = 0; i < 8; i++) {
+    const px = Math.random()*size, py = Math.random()*size, pr = 50+Math.random()*80;
+    const grd = ctx.createRadialGradient(px,py,0,px,py,pr);
+    grd.addColorStop(0, 'rgba(180,220,200,0.025)');
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2); ctx.fill();
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(8, 8);
+  return tex;
+}
+
+function makeRoughTexture() {
+  const size = 256, c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+  // Rough/collar: deeper, slightly warmer dark green — clearly different from the green
+  ctx.fillStyle = '#1a3d1e';
+  ctx.fillRect(0, 0, size, size);
+  for(let p=0;p<30;p++){
+    const px=(Math.random()*size), py=(Math.random()*size), pr=10+Math.random()*25;
+    const grd=ctx.createRadialGradient(px,py,0,px,py,pr);
+    grd.addColorStop(0,'rgba(6,22,8,0.2)'); grd.addColorStop(1,'rgba(6,22,8,0)');
+    ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2); ctx.fill();
+  }
+  const r=(a,b)=>a+Math.random()*(b-a);
+  for(let i=0;i<14000;i++){
+    const x=r(0,size), y=r(0,size), l=r(5,16), ang=r(-0.5,0.5)+Math.PI*1.5;
+    const dark=Math.random()>0.55;
+    ctx.strokeStyle=dark?`rgba(4,18,6,${r(0.07,0.18)})`:`rgba(38,90,30,${r(0.03,0.10)})`;
+    ctx.lineWidth=r(0.5,1.8);
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(ang)*l, y+Math.sin(ang)*l); ctx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(14,14);
+  return tex;
+}
+
+// ─── TERRAIN CONSTANTS ───────────────────────────────────────────────────────
+// GX/GZ are now dynamic — set fresh each time makeTerrain() runs.
+let GX=30, GZ=30;
+const SEG=isMobile?52:72;
+
+function rng(a,b){ return a+Math.random()*(b-a); }
+
+// ─── TERRAIN DATA ────────────────────────────────────────────────────────────
+function makeTerrain(){
+  const diff=getActiveDiff();
+  const s=diff==='easy'?0.38:diff==='medium'?0.85:1.5;
+  const n=diff==='easy'?2:diff==='medium'?3:5;
+
+  // ── Green shape & size ────────────────────────────────────────────────────
+  // Randomly pick a green archetype each time. Size varies widely.
+  const archetypes = ['rect','rect','oval','oval','kidney','wide','deep'];
+  const arch = archetypes[Math.floor(Math.random()*archetypes.length)];
+  let gw, gd; // width (x) and depth (z)
+  if(arch==='rect'){
+    gw=rng(18,38); gd=rng(18,38);
+  } else if(arch==='oval'){
+    const r=rng(12,22); gw=r*rng(1,1.6); gd=r*rng(1,1.6);
+  } else if(arch==='kidney'){
+    gw=rng(28,42); gd=rng(16,26);
+  } else if(arch==='wide'){
+    gw=rng(36,50); gd=rng(14,22);
+  } else { // deep
+    gw=rng(14,22); gd=rng(36,50);
+  }
+  GX=gw; GZ=gd;
+
+  // Shape mask: controls which points are considered "on the green" for
+  // purposes of terrain masking and ball/hole placement.
+  // 'rect' = full rectangle, 'oval' = ellipse, 'kidney' = ellipse with notch.
+  const shape = (arch==='rect'||arch==='wide'||arch==='deep') ? 'rect' : 'oval';
+
+  // ── Putt distance: 3m (short tap-in) up to 18m (long lag) ────────────────
+  const puttDist = rng(4, Math.min(18, Math.min(GX,GZ)*0.75));
+
+  // Place ball and hole ensuring they stay comfortably inside the green,
+  // with a guaranteed minimum separation = puttDist.
+  // Place hole first, then place ball puttDist away in a random direction.
+  const margin = 3.5;
+  let hx, hz, bx, bz;
+  for(let attempt=0; attempt<40; attempt++){
+    hx = rng(-GX/2+margin, GX/2-margin);
+    hz = rng(-GZ/2+margin, GZ/2-margin);
+    // For oval greens, reject if outside ellipse
+    if(shape==='oval' && (hx/(GX/2-margin))**2+(hz/(GZ/2-margin))**2 > 0.75) continue;
+    const ang = rng(0, Math.PI*2);
+    bx = hx + Math.cos(ang)*puttDist;
+    bz = hz + Math.sin(ang)*puttDist;
+    // Keep ball inside green footprint too
+    if(Math.abs(bx) > GX/2-margin || Math.abs(bz) > GZ/2-margin) continue;
+    if(shape==='oval' && (bx/(GX/2-margin))**2+(bz/(GZ/2-margin))**2 > 0.75) continue;
+    break;
+  }
+
+  const waves=[];
+  for(let i=0;i<n;i++) waves.push({
+    ax:rng(-1,1)*s, az:rng(-1,1)*s,
+    fx:rng(0.25,0.9), fz:rng(0.25,0.9),
+    px:rng(0,Math.PI*2), pz:rng(0,Math.PI*2)
+  });
+  return{
+    waves,
+    shape,    // 'rect' or 'oval'
+    arch,
+    tiltX:rng(-0.12,0.12)*s,
+    tiltZ:rng(-0.1,0.1)*s,
+    ball:{x:bx, z:bz},
+    hole:{x:hx, z:hz}
+  };
+}
+
+function heightAt(g,x,z){
+  let h=g.tiltX*x+g.tiltZ*z;
+  for(const w of g.waves){
+    h+=Math.sin(w.fx*x*0.32+w.px)*w.ax*0.7;
+    h+=Math.sin(w.fz*z*0.32+w.pz)*w.az*0.7;
+  }
+  return h;
+}
+
+function gradAt(g,x,z){
+  const e=0.05;
+  return{
+    dx:(heightAt(g,x+e,z)-heightAt(g,x-e,z))/(2*e),
+    dz:(heightAt(g,x,z+e)-heightAt(g,x,z-e))/(2*e)
+  };
+}
+
+// Is a world point (x,z) inside this green's shape?
+function onGreenSurface(g, x, z){
+  if(Math.abs(x)>GX/2||Math.abs(z)>GZ/2) return false;
+  if(g.shape==='oval'){
+    return (x/(GX/2))**2+(z/(GZ/2))**2 <= 1.0;
+  }
+  return true; // rect
+}
+
+// ─── UNIFIED TERRAIN HEIGHT (green + surround slope + rough) ─────────────────
+function terrainHeightAt(g, x, z) {
+  // Distance from the green surface boundary (positive = outside)
+  let edgeDist;
+  let ex, ez;
+  if(g.shape==='oval'){
+    // Signed distance approximation for ellipse
+    const nx = x/(GX/2), nz = z/(GZ/2);
+    const r = Math.sqrt(nx*nx+nz*nz);
+    if(r <= 1.0){
+      // Inside oval — use green height directly
+      return heightAt(g, x, z);
+    }
+    // Outside: nearest point on ellipse boundary
+    ex = (x/r)*(GX/2); ez = (z/r)*(GZ/2);
+    edgeDist = Math.hypot(x-ex, z-ez);
+  } else {
+    // Rect
+    const hx=GX/2, hz=GZ/2;
+    if(Math.abs(x)<=hx && Math.abs(z)<=hz) return heightAt(g, x, z);
+    ex = Math.max(-hx, Math.min(hx, x));
+    ez = Math.max(-hz, Math.min(hz, z));
+    const edgeDx = Math.max(0, Math.abs(x)-hx);
+    const edgeDz = Math.max(0, Math.abs(z)-hz);
+    edgeDist = Math.sqrt(edgeDx*edgeDx+edgeDz*edgeDz);
+  }
+
+  const edgeH = heightAt(g, ex, ez);
+  const DROP = 2.5;
+  const roughWave = Math.sin(x*0.09+1.3)*0.3+Math.cos(z*0.08+0.8)*0.25+Math.sin((x-z)*0.04)*0.2;
+  const roughBase = edgeH - DROP + roughWave;
+  const collarW = 6.0;
+  const t = Math.min(1, edgeDist/collarW);
+  const ease = t*t*(3-2*t);
+  return edgeH + ease*(roughBase-edgeH);
+}
+
+function terrainGradAt(g, x, z) {
+  const e = 0.1;
+  return {
+    dx: (terrainHeightAt(g,x+e,z) - terrainHeightAt(g,x-e,z)) / (2*e),
+    dz: (terrainHeightAt(g,x,z+e) - terrainHeightAt(g,x,z-e)) / (2*e)
+  };
+}
+
+// ─── SCENE OBJECTS ───────────────────────────────────────────────────────────
+let G=null, greenMesh=null, greenGeo=null;
+let holeGroup=null, ballMesh=null;
+let pathObjects=[], idealLineObj=null, greenObjects=[];
+let showIdeal=false, idealData=null, aimPoint=null, animating=false;
+let treeMeshes=[], roughTex=null;
+
+function makeTree(x, groundY, z) {
+  const grp = new THREE.Group();
+  const h = 3.5 + Math.random() * 2.5;
+  const sp = 1.0 + Math.random() * 0.8;
+  // Trunk
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.11, 0.17, h*0.3, 6),
+    new THREE.MeshLambertMaterial({ color: 0x4a2e1a })
+  );
+  trunk.position.y = h * 0.15;
+  trunk.castShadow = true;
+  grp.add(trunk);
+  // Layered foliage cones
+  const greens = [0x1b5e22, 0x236b2b, 0x2e8834, 0x388e3c];
+  const layers = 3 + Math.floor(Math.random()*2);
+  for (let i = 0; i < layers; i++) {
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry(sp * (1.1 - i*0.18), h * 0.38, 7),
+      new THREE.MeshLambertMaterial({ color: greens[i % greens.length] })
+    );
+    cone.position.y = h * 0.28 + i * h * 0.19;
+    cone.castShadow = true;
+    grp.add(cone);
+  }
+  grp.position.set(x, groundY, z);
+  return grp;
+}
+
+function addTrees(g) {
+  treeMeshes.forEach(m => scene.remove(m));
+  treeMeshes = [];
+  // Ring of trees at varied distances around the green
+  const count = 16;
+  for (let i = 0; i < count; i++) {
+    const baseAng = (i / count) * Math.PI * 2;
+    const ang = baseAng + rng(-0.3, 0.3);
+    const dist = rng(22, 48);
+    const tx = Math.cos(ang) * dist;
+    const tz = Math.sin(ang) * dist;
+    const ty = terrainHeightAt(g, tx, tz);
+    const tree = makeTree(tx, ty, tz);
+    scene.add(tree);
+    treeMeshes.push(tree);
+  }
+  // A few extra random clusters
+  for (let i = 0; i < 8; i++) {
+    const ang = rng(0, Math.PI * 2);
+    const dist = rng(35, 60);
+    const tx = Math.cos(ang) * dist, tz = Math.sin(ang) * dist;
+    const ty = terrainHeightAt(g, tx, tz);
+    const tree = makeTree(tx, ty, tz);
+    scene.add(tree);
+    treeMeshes.push(tree);
+  }
+}
+
+function addBunkers(g) {
+  // Place bunkers just outside the green boundary, scaled to green size.
+  const offset = Math.max(GX, GZ) / 2 + rng(2, 5);
+  const bunks = [
+    { x: rng(offset*0.7, offset*1.1),  z: rng(-GZ*0.25, GZ*0.25),  w: rng(4,9),  d: rng(3,6) },
+    { x: rng(-offset*1.1,-offset*0.7), z: rng(-GZ*0.25, GZ*0.25),  w: rng(4,8),  d: rng(3,5) },
+  ];
+  const sandMat = new THREE.MeshLambertMaterial({ color: 0xd4bb7a });
+  bunks.forEach(b => {
+    const geo = new THREE.PlaneGeometry(b.w, b.d, 10, 8);
+    geo.rotateX(-Math.PI/2);
+    const bPos = geo.attributes.position;
+    const by = terrainHeightAt(g, b.x, b.z) + 0.05;
+    for (let i = 0; i < bPos.count; i++) {
+      const lx = bPos.getX(i) / (b.w/2), lz = bPos.getZ(i) / (b.d/2);
+      const r2 = Math.min(1, lx*lx + lz*lz);
+      bPos.setY(i, by - 0.22 * (1 - r2));
+    }
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, sandMat);
+    mesh.receiveShadow = true;
+    mesh.renderOrder = 2;
+    scene.add(mesh);
+    greenObjects.push(mesh);
+  });
+}
+
+function makeOvalMask() {
+  // Canvas alpha mask: white ellipse on black background.
+  // Used as alphaMap on the green material for oval greens so only the
+  // ellipse region shows — the rect PlaneGeometry corners are transparent.
+  const S = 512;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, S, S);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(S/2, S/2, S/2 - 2, S/2 - 2, 0, 0, Math.PI*2);
+  ctx.fill();
+  const tex = new THREE.CanvasTexture(c);
+  return tex;
+}
+
+function buildGreen(g) {
+  greenObjects.forEach(o => {
+    scene.remove(o);
+    if(o.geometry) o.geometry.dispose();
+    if(o.material && o.material.dispose) o.material.dispose();
+  });
+  greenObjects = [];
+  if(greenMesh){ scene.remove(greenMesh); greenMesh=null; }
+  roughTex = makeRoughTexture();
+
+  // ── SURROUND TERRAIN ──────────────────────────────────────────────────────
+  // Simple approach: surround covers everything at terrainHeightAt.
+  // No sinking or special handling under the green — the green mesh just
+  // sits on top (it's physically higher) and wins the depth test naturally.
+  // polygonOffset on the green material pushes it in front to avoid z-fighting.
+  const SSIZE = 160, SSEGS = isMobile ? 52 : 72;
+  const sGeo = new THREE.PlaneGeometry(SSIZE, SSIZE, SSEGS, SSEGS);
+  sGeo.rotateX(-Math.PI/2);
+  const sPos = sGeo.attributes.position;
+  for (let i = 0; i < sPos.count; i++) {
+    sPos.setY(i, terrainHeightAt(g, sPos.getX(i), sPos.getZ(i)));
+  }
+  sGeo.computeVertexNormals();
+  const surroundMesh = new THREE.Mesh(sGeo, new THREE.MeshLambertMaterial({ map: roughTex }));
+  surroundMesh.receiveShadow = true;
+  scene.add(surroundMesh);
+  greenObjects.push(surroundMesh);
+
+  // ── PUTTING SURFACE ────────────────────────────────────────────────────────
+  // Both shapes use PlaneGeometry. For oval, an alphaMap masks the corners
+  // to transparent — clean ellipse edge, correct normals, no shading weirdness.
+  const dynSeg = Math.max(SEG, Math.round(Math.max(GX,GZ)*2.0));
+
+  greenGeo = new THREE.PlaneGeometry(GX, GZ, dynSeg, dynSeg);
+  greenGeo.rotateX(-Math.PI/2);
+  const pos = greenGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    pos.setY(i, heightAt(g, pos.getX(i), pos.getZ(i)));
+  }
+  greenGeo.computeVertexNormals();
+
+  let greenMat;
+  if (g.shape === 'oval') {
+    greenMat = new THREE.MeshLambertMaterial({
+      map: makeGreenTexture(),
+      alphaMap: makeOvalMask(),
+      transparent: true,
+      alphaTest: 0.5,        // hard cutoff — no soft edge blending issues
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+  } else {
+    greenMat = new THREE.MeshLambertMaterial({
+      map: makeGreenTexture(),
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+  }
+
+  greenMesh = new THREE.Mesh(greenGeo, greenMat);
+  greenMesh.receiveShadow = true;
+  scene.add(greenMesh);
+  greenObjects.push(greenMesh);
+
+  addBunkers(g);
+  addTrees(g);
+}
+
+function buildMarkers(g) {
+  if(holeGroup) scene.remove(holeGroup);
+  if(ballMesh)  scene.remove(ballMesh);
+  holeGroup = new THREE.Group();
+  const hy = heightAt(g, g.hole.x, g.hole.z);
+
+  const cup = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.27, 0.27, 0.22, 32),
+    new THREE.MeshLambertMaterial({ color: 0x080808 })
+  );
+  cup.position.set(g.hole.x, hy-0.05, g.hole.z);
+  holeGroup.add(cup);
+
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(0.27, 0.035, 8, 32),
+    new THREE.MeshLambertMaterial({ color: 0x777777 })
+  );
+  rim.position.set(g.hole.x, hy+0.01, g.hole.z);
+  rim.rotation.x = Math.PI/2;
+  holeGroup.add(rim);
+
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022, 0.022, 2.4, 8),
+    new THREE.MeshLambertMaterial({ color: 0xdddddd })
+  );
+  pole.position.set(g.hole.x, hy+1.2, g.hole.z);
+  holeGroup.add(pole);
+
+  const flagVerts = new Float32Array([
+    0,0,0,  0.75,-0.22,0,  0,-0.5,0
+  ]);
+  const flagGeo = new THREE.BufferGeometry();
+  flagGeo.setAttribute('position', new THREE.BufferAttribute(flagVerts, 3));
+  flagGeo.computeVertexNormals();
+  const flag = new THREE.Mesh(
+    flagGeo,
+    new THREE.MeshLambertMaterial({ color: 0xff2222, side: THREE.DoubleSide })
+  );
+  flag.position.set(g.hole.x, hy+2.38, g.hole.z);
+  holeGroup.add(flag);
+  scene.add(holeGroup);
+
+  const by = heightAt(g, g.ball.x, g.ball.z);
+  ballMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.215, 20, 20),
+    new THREE.MeshLambertMaterial({ color: 0xffffff })
+  );
+  ballMesh.position.set(g.ball.x, by+0.215, g.ball.z);
+  ballMesh.castShadow = true;
+  scene.add(ballMesh);
+
+  // Centre camera orbit on the ball
+  orbitTarget.set(g.ball.x, by + 0.5, g.ball.z);
+  updateCamera();
+}
+
+function clearPaths() {
+  if(trailLine){ scene.remove(trailLine); trailLine.geometry.dispose(); trailLine=null; }
+  pathObjects.forEach(o => { scene.remove(o); if(o.geometry) o.geometry.dispose(); });
+  pathObjects = [];
+  if(idealLineObj){ scene.remove(idealLineObj); if(idealLineObj.geometry) idealLineObj.geometry.dispose(); idealLineObj=null; }
+}
+
+function makeLine3D(pts, color, opacity=1) {
+  const arr = new Float32Array(pts.length*3);
+  pts.forEach((p,i) => { arr[i*3]=p.x; arr[i*3+1]=p.y+0.16; arr[i*3+2]=p.z; });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(arr,3));
+  return new THREE.Line(geo, new THREE.LineBasicMaterial({ color, opacity, transparent: opacity<1 }));
+}
+
+// ─── PHYSICS CONSTANTS ───────────────────────────────────────────────────────
+// Stimpmeter-accurate rolling model.
+//
+// Two-component friction (like a real physics engine):
+//   1. Viscous (proportional): e^(-k*dt) per tick — dominant at high speed
+//   2. Coulomb (constant decel): always opposes motion — dominates at low speed
+//      This is the fix for the "creep forever" bug. Real grass exerts a
+//      roughly constant resistive force regardless of ball speed.
+//
+// Difficulty also scales green speed (stimp):
+//   easy   → stim ~8  (slower, more forgiving)
+//   medium → stim ~10 (tour speed)
+//   hard   → stim ~12 (Augusta-fast, ball runs forever)
+//
+const PHYS_DT          = 0.016;
+const GRAVITY_SLOPE    = 9.8;    // m/s² — gravitational pull along slope
+const STOP_SPEED       = 0.06;   // m/s — absolute cutoff (prevents sub-pixel drift)
+const HOLE_CAPTURE_R   = 0.27;
+const LIP_MAX_SPEED    = 1.8;    // m/s — above this speed, lips out
+
+// Physics params are now a combination of BREAK (terrain waviness) and SPEED
+// (green stimpmeter). They are independent axes:
+//   BREAK  → controls terrain wave amplitude (set in makeTerrain)
+//   SPEED  → controls viscous + coulomb friction (set here, read each shot)
+//
+// Speed params by stimpmeter:
+//   slow   → stim ~7  (receptive, ball stops quickly — Augusta practice green)
+//   medium → stim ~10 (tour standard)
+//   fast   → stim ~13 (tournament week, ball really runs)
+const SPEED_PARAMS = {
+  slow:   { viscous: 0.9920, coulomb: 0.70, roughViscous: 0.984, roughCoulomb: 2.2 },
+  medium: { viscous: 0.9962, coulomb: 0.34, roughViscous: 0.980, roughCoulomb: 1.6 },
+  fast:   { viscous: 0.9982, coulomb: 0.14, roughViscous: 0.977, roughCoulomb: 1.1 },
+};
+
+function getPhysParams() {
+  return SPEED_PARAMS[getActiveSpeed()] || SPEED_PARAMS.medium;
+}
+
+// Skid phase duration in seconds for high-power shots.
+// Below this elapsed time, slope effect is muted (ball hasn't rolled over yet).
+const SKID_DURATION = 0.28; // seconds — ~first foot of travel on a firm green
+
+function simulatePath(g, aimX, aimZ, overrideStrength) {
+  const pwr = (overrideStrength !== undefined ? overrideStrength : strength) / 100;
+  // Quadratic power curve: tap-in at 5%, firm 25ft putt at ~50%, full rip at 100%
+  const initSpeed = 0.5 + pwr * pwr * 24.5;
+
+  const params = getPhysParams();
+
+  let x = g.ball.x, z = g.ball.z;
+  const dx = aimX - x, dz = aimZ - z;
+  const mag = Math.hypot(dx, dz) || 1;
+  let vx = (dx/mag) * initSpeed, vz = (dz/mag) * initSpeed;
+
+  const pts = [];
+  let result = 'miss';
+  let nearHoleFast = false;
+  let elapsed = 0; // track time for skid phase
+
+  for (let i = 0; i < 18000; i++) {
+    pts.push({ x, y: terrainHeightAt(g, x, z), z });
+
+    const gr = terrainGradAt(g, x, z);
+    const spd = Math.hypot(vx, vz);
+
+    // ── Slope / gravity ──────────────────────────────────────────────────────
+    // During skid phase (high-power shot hasn't rolled over yet), mute early
+    // slope influence — the ball is still skidding on top of the grass.
+    const skidFactor = elapsed < SKID_DURATION ? (elapsed / SKID_DURATION) : 1.0;
+    vx += -gr.dx * GRAVITY_SLOPE * PHYS_DT * skidFactor;
+    vz += -gr.dz * GRAVITY_SLOPE * PHYS_DT * skidFactor;
+
+    // ── Surface friction ─────────────────────────────────────────────────────
+    // Smooth blend from green to rough over the collar (matches visual terrain).
+    // Compute distance outside the green boundary (works for both rect and oval)
+    let edgeDist2 = 0;
+    if(!onGreenSurface(g, x, z)){
+      if(g.shape==='oval'){
+        const nx=x/(GX/2), nz=z/(GZ/2), r=Math.sqrt(nx*nx+nz*nz);
+        const ex2=(x/r)*(GX/2), ez2=(z/r)*(GZ/2);
+        edgeDist2=Math.hypot(x-ex2,z-ez2);
+      } else {
+        const hx2=GX/2,hz2=GZ/2;
+        const edgeDx=Math.max(0,Math.abs(x)-hx2), edgeDz=Math.max(0,Math.abs(z)-hz2);
+        edgeDist2=Math.sqrt(edgeDx*edgeDx+edgeDz*edgeDz);
+      }
+    }
+    const collarBlend = Math.min(1, edgeDist2 / 4.0); // 4m collar transition
+    const t2 = collarBlend * collarBlend * (3 - 2*collarBlend);
+
+    const visc  = params.viscous  + t2 * (params.roughViscous  - params.viscous);
+    const coul  = params.coulomb  + t2 * (params.roughCoulomb  - params.coulomb);
+
+    // 1. Viscous component (proportional, per-tick multiplier)
+    vx *= visc; vz *= visc;
+
+    // 2. Coulomb component (constant decel opposing motion)
+    // Also scale up on uphill (slope fights ball more) and slightly down downhill.
+    // dot(velocity_dir, gradient) > 0 means ball going uphill.
+    const spdAfterVisc = Math.hypot(vx, vz);
+    if (spdAfterVisc > 0.0001) {
+      const vdirX = vx / spdAfterVisc, vdirZ = vz / spdAfterVisc;
+      const slopeAlign = vdirX * gr.dx + vdirZ * gr.dz; // positive = uphill
+      const slopeMod = 1.0 + slopeAlign * 0.6; // uphill: more drag; downhill: less
+      const coulombDecel = coul * Math.max(0.2, slopeMod) * PHYS_DT;
+      if (spdAfterVisc > coulombDecel) {
+        vx -= vdirX * coulombDecel;
+        vz -= vdirZ * coulombDecel;
+      } else {
+        vx = vz = 0; // crisp stop
+      }
+    }
+
+    x += vx * PHYS_DT;
+    z += vz * PHYS_DT;
+    elapsed += PHYS_DT;
+
+    const distToHole = Math.hypot(x - g.hole.x, z - g.hole.z);
+    const spdNow = Math.hypot(vx, vz);
+
+    // BALL_RADIUS = 0.215m. The ball drops when its edge reaches the cup edge,
+    // i.e. ball centre is within (cup_r + ball_r) of hole centre.
+    const BALL_RADIUS = 0.215;
+    const captureR = HOLE_CAPTURE_R + BALL_RADIUS; // ~0.485m
+
+    if (distToHole < captureR) {
+      if (spdNow > LIP_MAX_SPEED) {
+        nearHoleFast = true;
+      } else {
+        // Gravity well: pull ball toward cup centre once it overlaps the hole.
+        // Overlap scales from 0 at the edge to 1 at centre — pull is quadratic
+        // so the lip is gentle but centre is a strong committed drop.
+        const overlap = 1 - (distToHole / captureR);
+        const pullStrength = 18 * overlap * overlap;
+        const hDist = distToHole || 0.001;
+        vx += ((g.hole.x - x) / hDist) * pullStrength * PHYS_DT;
+        vz += ((g.hole.z - z) / hDist) * pullStrength * PHYS_DT;
+
+        // Hard capture: ball centre inside cup
+        if (distToHole < HOLE_CAPTURE_R) {
+          pts.push({ x: g.hole.x, y: terrainHeightAt(g, g.hole.x, g.hole.z), z: g.hole.z });
+          result = 'in'; break;
+        }
+      }
+    }
+
+    if (spdNow < STOP_SPEED || (vx === 0 && vz === 0)) {
+      if (nearHoleFast) result = 'lip';
+      else {
+        const offGreen = Math.abs(x) > GX/2 || Math.abs(z) > GZ/2;
+        result = offGreen ? 'rough'
+               : distToHole < 0.5 ? 'close'
+               : distToHole < 2.5 ? 'near'
+               : 'miss';
+      }
+      break;
+    }
+    if (Math.abs(x) > 75 || Math.abs(z) > 75) { result = 'off'; break; }
+  }
+  return { pts, result, end: {x, z} };
+}
+
+function findIdeal(g) {
+  // Always search at a canonical 50% power so the ideal line is independent
+  // of whatever power the player has set. (A downhill putt at 100% has no
+  // "ideal" — the right answer is to use less power.)
+  const IDEAL_STRENGTH = 50;
+  const bx=g.ball.x, bz=g.ball.z, hx=g.hole.x, hz=g.hole.z;
+  const baseA=Math.atan2(hz-bz,hx-bx), dist=Math.hypot(hx-bx,hz-bz);
+  let best=null, bestDist=Infinity;
+  for(let da=-1.8;da<=1.8;da+=0.008){
+    const a=baseA+da;
+    const ax=bx+Math.cos(a)*dist*1.8, az=bz+Math.sin(a)*dist*1.8;
+    const sim=simulatePath(g,ax,az,IDEAL_STRENGTH);
+    if(sim.result==='in') return{ax,az,path:sim};
+    const d=Math.hypot(sim.end.x-hx,sim.end.z-hz);
+    if(d<bestDist){bestDist=d;best={ax,az,path:sim};}
+  }
+  return best||{ax:hx,az:hz,path:simulatePath(g,hx,hz,IDEAL_STRENGTH)};
+}
+
+// ─── AIM OVERLAY ─────────────────────────────────────────────────────────────
+function worldToScreen(wx,wy,wz){
+  const v=new THREE.Vector3(wx,wy,wz).project(camera);
+  return{x:(v.x*0.5+0.5)*aimCanvas.width, y:(-v.y*0.5+0.5)*aimCanvas.height};
+}
+
+function drawAimOverlay(){
+  aimCtx.clearRect(0,0,aimCanvas.width,aimCanvas.height);
+  if(!G||!aimPoint||animating) return;
+  const bs=worldToScreen(G.ball.x,heightAt(G,G.ball.x,G.ball.z)+0.25,G.ball.z);
+  const as=worldToScreen(aimPoint.x,heightAt(G,aimPoint.x,aimPoint.z)+0.18,aimPoint.z);
+
+  aimCtx.save();
+  aimCtx.strokeStyle='rgba(250,208,58,0.72)'; aimCtx.lineWidth=2;
+  aimCtx.setLineDash([8,5]); aimCtx.shadowColor='rgba(250,208,58,0.45)'; aimCtx.shadowBlur=7;
+  aimCtx.beginPath(); aimCtx.moveTo(bs.x,bs.y); aimCtx.lineTo(as.x,as.y); aimCtx.stroke();
+  aimCtx.restore();
+
+  aimCtx.save();
+  const r=isMobile?12:9;
+  aimCtx.beginPath(); aimCtx.arc(as.x,as.y,r,0,Math.PI*2);
+  aimCtx.fillStyle='rgba(250,208,58,0.9)'; aimCtx.shadowColor='rgba(250,208,58,0.8)'; aimCtx.shadowBlur=14;
+  aimCtx.fill(); aimCtx.strokeStyle='#fff'; aimCtx.lineWidth=1.5; aimCtx.stroke();
+  aimCtx.restore();
+
+  aimCtx.save();
+  aimCtx.strokeStyle='rgba(255,255,255,0.5)'; aimCtx.lineWidth=1;
+  const s=isMobile?20:15;
+  [[-s,0,-r-2,0],[r+2,0,s,0],[0,-s,0,-r-2],[0,r+2,0,s]].forEach(([x1,y1,x2,y2])=>{
+    aimCtx.beginPath(); aimCtx.moveTo(as.x+x1,as.y+y1); aimCtx.lineTo(as.x+x2,as.y+y2); aimCtx.stroke();
+  });
+  aimCtx.restore();
+}
+
+// ─── RAYCASTING ──────────────────────────────────────────────────────────────
+const raycaster=new THREE.Raycaster();
+const mouse=new THREE.Vector2();
+function handleAim(clientX,clientY){
+  if(animating||!G||!greenMesh) return;
+  const rect=container.getBoundingClientRect();
+  mouse.x=((clientX-rect.left)/rect.width)*2-1;
+  mouse.y=-((clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(mouse,camera);
+  const hits=raycaster.intersectObject(greenMesh);
+  if(hits.length>0){
+    aimPoint={x:hits[0].point.x, z:hits[0].point.z};
+    document.getElementById('s-aim').textContent=aimAngle().toFixed(1)+'°';
+    document.getElementById('btn-putt').disabled=false;
+    setMsg('Aim set — adjust power and hit PUTT','');
+  }
+}
+
+function aimAngle(){ if(!G||!aimPoint)return 0; return Math.atan2(aimPoint.z-G.ball.z,aimPoint.x-G.ball.x)*180/Math.PI; }
+function setMsg(txt,cls=''){ const el=document.getElementById('msg'); el.textContent=txt; el.className=cls; }
+
+// ─── ANIMATION ───────────────────────────────────────────────────────────────
+let lastTimestamp=null, animPts=[], animTimeIdx=0, trailLine=null, animCallback=null;
+
+function startBallAnim(pts, onDone, initSpeed){
+  animPts=pts; animTimeIdx=0; trailLine=null; lastTimestamp=null; animCallback=onDone;
+  animInitSpeed = initSpeed || 0;
+  animSinking = false; animSinkStart = null;
+  ballMesh.visible = true; ballMesh.scale.setScalar(1);
+}
+
+// Extra state for animation enhancements
+let animInitSpeed = 0;      // launch speed of current shot (for skid/zoom scaling)
+let animSinkStart = null;   // timestamp when hole-drop sink began
+let animSinking   = false;  // true during the hole-sink phase
+const SINK_DURATION = 0.38; // seconds for ball to drop into cup
+
+function tickBallAnim(now){
+  if(!animating || !animPts || animPts.length===0) return;
+  if(lastTimestamp===null) lastTimestamp=now;
+  const elapsed=Math.min((now-lastTimestamp)/1000, 0.1);
+  lastTimestamp=now;
+
+  // ── Hole-sink phase ───────────────────────────────────────────────────────
+  // After the ball reaches the hole, play a brief drop animation before calling done.
+  if(animSinking){
+    const t = Math.min(1, (now - animSinkStart) / 1000 / SINK_DURATION);
+    const ease = t * t; // accelerate into cup
+    const p = animPts[animPts.length-1];
+    const sinkY = p.y + 0.215 * (1 - ease) - ease * 0.18; // drop below surface
+    const shrink = 1 - ease * 0.85;
+    ballMesh.position.set(p.x, sinkY, p.z);
+    ballMesh.scale.setScalar(shrink);
+    if(t >= 1){
+      animSinking = false;
+      ballMesh.visible = false;
+      ballMesh.scale.setScalar(1);
+      const cb=animCallback; animCallback=null;
+      if(cb) cb();
+    }
+    return;
+  }
+
+  // ── Normal playback ───────────────────────────────────────────────────────
+  // Speed up playback so it's watchable, but keep fast shots snappier.
+  const animSpeedMult = 2.5;
+  const stepsToAdvance = Math.max(1, Math.round((elapsed * animSpeedMult) / PHYS_DT));
+  const prevIdx = animTimeIdx;
+  animTimeIdx = Math.min(animTimeIdx + stepsToAdvance, animPts.length-1);
+
+  const p = animPts[animTimeIdx];
+  if(!p) return;
+
+  // ── Skid/bounce for high-power shots ─────────────────────────────────────
+  // In the first ~0.3s of a hard hit, add a tiny vertical oscillation
+  // simulating the ball bouncing/skidding on firm grass before it rolls.
+  const animElapsed = animTimeIdx * PHYS_DT / animSpeedMult;
+  let skidBounce = 0;
+  if(animInitSpeed > 6 && animElapsed < SKID_DURATION){
+    const skidT = animElapsed / SKID_DURATION;
+    const bounceDecay = 1 - skidT;
+    // Damped oscillation — 3 quick hops that die off
+    const bounceAmp = Math.min(1, (animInitSpeed - 6) / 10) * 0.18;
+    skidBounce = Math.abs(Math.sin(skidT * Math.PI * 3.5)) * bounceDecay * bounceAmp;
+  }
+
+  ballMesh.visible = true;
+  ballMesh.position.set(p.x, p.y + 0.215 + skidBounce, p.z);
+
+  // ── Dynamic camera zoom ───────────────────────────────────────────────────
+  // When the ball is moving fast and far from centre, zoom out so it stays
+  // visible. When it slows and settles, gently zoom back to default.
+  const distFromCentre = Math.hypot(p.x, p.z);
+  const baseR = isMobile ? 38 : 30;
+  const targetR = Math.min(baseR + distFromCentre * 1.1, 90);
+  orbitR += (targetR - orbitR) * 0.06; // lazy lerp — smooth zoom
+
+  // Smoothly pan camera to follow the ball
+  const lerpSpeed = 0.10;
+  orbitTarget.x += (p.x - orbitTarget.x) * lerpSpeed;
+  orbitTarget.y += (p.y + 0.5 - orbitTarget.y) * lerpSpeed;
+  orbitTarget.z += (p.z - orbitTarget.z) * lerpSpeed;
+  updateCamera();
+
+  if(animTimeIdx>1){
+    if(trailLine){ scene.remove(trailLine); trailLine.geometry.dispose(); pathObjects=pathObjects.filter(o=>o!==trailLine); }
+    trailLine=makeLine3D(animPts.slice(0,animTimeIdx+1),0xfad03a);
+    scene.add(trailLine);
+    pathObjects.push(trailLine);
+  }
+
+  // ── End of path ───────────────────────────────────────────────────────────
+  if(animTimeIdx>=animPts.length-1 && prevIdx<animPts.length-1){
+    // Check if this was a hole-in: last point snapped to hole coords
+    const lastP = animPts[animPts.length-1];
+    const isHoled = Math.hypot(lastP.x-G.hole.x, lastP.z-G.hole.z) < 0.05;
+    if(isHoled){
+      // Trigger the sink animation instead of calling done immediately
+      animSinking = true;
+      animSinkStart = now;
+    } else {
+      const cb=animCallback; animCallback=null;
+      if(cb) cb();
+    }
+  }
+}
+
+// ─── PUTT ─────────────────────────────────────────────────────────────────────
+function putt(){
+  if(!G||!aimPoint||animating) return;
+  animating=true; clearPaths();
+  const btn=document.getElementById('btn-putt');
+  btn.disabled=true;
+  btn.textContent='…';
+  setMsg('Computing shot…','');
+
+  // Capture aim point locally so setTimeout closure is safe
+  const capturedAim = { x: aimPoint.x, z: aimPoint.z };
+
+  // Let the browser paint the loading state first, THEN run heavy physics
+  setTimeout(()=>{
+  const sim=simulatePath(G,capturedAim.x,capturedAim.z);
+  if(!idealData) idealData=findIdeal(G);
+  if(!idealData) { // extreme terrain edge case — bail gracefully
+    animating=false; btn.textContent='PUTT'; btn.disabled=false;
+    setMsg('Could not find ideal line — try again','bad'); return;
+  }
+  if(showIdeal&&idealData){ idealLineObj=makeLine3D(idealData.path.pts,0x5ab4ff,0.68); scene.add(idealLineObj); }
+
+  const ia=Math.atan2(idealData.az-G.ball.z,idealData.ax-G.ball.x)*180/Math.PI;
+  const aa=Math.atan2(capturedAim.z-G.ball.z,capturedAim.x-G.ball.x)*180/Math.PI;
+  document.getElementById('s-ideal').textContent=ia.toFixed(1)+'°';
+  document.getElementById('r-aim').textContent=aa.toFixed(1)+'°';
+  document.getElementById('r-ideal').textContent=ia.toFixed(1)+'°';
+
+  const msgs={
+    in:    ['Holed! Perfect read 🎉','good'],
+    close: ['Tap-in — great read','good'],
+    near:  ['Good — close break',''],
+    lip:   ['Lip out! Great read, touch too hard','bad'],
+    miss:  ['Miss — study the ideal line','bad'],
+    rough: ['Into the rough — too much power!','bad'],
+    off:   ['Way off the green — ease off!','bad']
+  };
+  const labels={in:'HOLED ⛳',close:'TAP-IN',near:'CLOSE',lip:'LIP OUT',miss:'MISS',rough:'IN ROUGH',off:'OFF GREEN'};
+
+  setMsg('','');
+  const pwr2 = strength / 100;
+  const shotInitSpeed = 0.5 + pwr2 * pwr2 * 24.5;
+  startBallAnim(sim.pts, ()=>{
+    animating=false; aimPoint=null;
+    btn.textContent='PUTT';
+    btn.disabled=true;
+    // Smoothly zoom back to default orbit radius after ball settles
+    const baseR = isMobile ? 38 : 30;
+    const zoomBackInterval = setInterval(()=>{
+      orbitR += (baseR - orbitR) * 0.08;
+      updateCamera();
+      if(Math.abs(orbitR - baseR) < 0.3){ orbitR = baseR; updateCamera(); clearInterval(zoomBackInterval); }
+    }, 16);
+    const rt=msgs[sim.result]||['',''];
+    setMsg(rt[0],rt[1]);
+    document.getElementById('s-res').textContent=labels[sim.result]||sim.result;
+    document.getElementById('r-dist').textContent=(Math.hypot(sim.end.x-G.hole.x,sim.end.z-G.hole.z)).toFixed(1)+'m';
+    document.getElementById('result-row').style.display='flex';
+  }, shotInitSpeed);
+  }, 0); // end setTimeout
+}
+
+// ─── IDEAL TOGGLE ─────────────────────────────────────────────────────────────
+function toggleIdeal(){
+  if(!G) return;
+  showIdeal=!showIdeal;
+  const btn=document.getElementById('btn-ideal');
+  btn.textContent=showIdeal?'HIDE IDEAL':'IDEAL LINE';
+  btn.className=showIdeal?'btn ideal-on':'btn';
+  if(idealLineObj){scene.remove(idealLineObj);if(idealLineObj.geometry)idealLineObj.geometry.dispose();idealLineObj=null;}
+  if(showIdeal){
+    if(!idealData) idealData=findIdeal(G);
+    idealLineObj=makeLine3D(idealData.path.pts,0x5ab4ff,0.75); scene.add(idealLineObj);
+    const ia=Math.atan2(idealData.az-G.ball.z,idealData.ax-G.ball.x)*180/Math.PI;
+    document.getElementById('s-ideal').textContent=ia.toFixed(1)+'°';
+  }
+}
+
+// ─── NEW / RESET ──────────────────────────────────────────────────────────────
+function newGreen(){
+  clearPaths(); G=makeTerrain(); buildGreen(G); buildMarkers(G);
+  aimPoint=null; idealData=null; animating=false; showIdeal=false;
+  document.getElementById('btn-ideal').textContent='IDEAL LINE';
+  document.getElementById('btn-ideal').className='btn';
+  document.getElementById('btn-putt').disabled=true;
+  document.getElementById('result-row').style.display='none';
+  ['s-aim','s-ideal','s-res'].forEach(id=>document.getElementById(id).textContent='—');
+  setMsg(isMobile?'Tap the green to aim, then hit PUTT':'Click the green to aim, then hit PUTT','');
+  // Pre-compute ideal in background so first putt is instant
+  setTimeout(()=>{ if(G&&!idealData) idealData=findIdeal(G); }, 50);
+}
+
+function reset(){
+  if(!G) return;
+  clearPaths(); buildMarkers(G); aimPoint=null; animating=false;
+  animSinking=false;
+  if(ballMesh){ ballMesh.visible=true; ballMesh.scale.setScalar(1); }
+  document.getElementById('btn-putt').disabled=true;
+  document.getElementById('result-row').style.display='none';
+  ['s-aim','s-res'].forEach(id=>document.getElementById(id).textContent='—');
+  setMsg('Pick a new aim point','');
+}
+
+document.getElementById('btn-putt').addEventListener('click',putt);
+document.getElementById('btn-ideal').addEventListener('click',toggleIdeal);
+document.getElementById('btn-new').addEventListener('click',newGreen);
+document.getElementById('btn-reset').addEventListener('click',reset);
+
+// ─── RENDER LOOP ─────────────────────────────────────────────────────────────
+function render(now){
+  requestAnimationFrame(render);
+  if(animating) tickBallAnim(now);
+  drawAimOverlay();
+  renderer.render(scene,camera);
+}
+
+newGreen();
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
