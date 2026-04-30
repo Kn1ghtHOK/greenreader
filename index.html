@@ -234,10 +234,10 @@ resize();
 window.addEventListener('resize', resize);
 
 // ─── LIGHTING ────────────────────────────────────────────────────────────────
-// Sky/ground hemisphere
-scene.add(new THREE.HemisphereLight(0x9fd6f5, 0x3a7a2a, 0.9));
+// Sky/ground hemisphere — balanced intensity
+scene.add(new THREE.HemisphereLight(0xb0e4ff, 0x3a7a2a, 0.75));
 
-const sun = new THREE.DirectionalLight(0xfff0c0, 1.9);
+const sun = new THREE.DirectionalLight(0xfff4c8, 1.4);
 sun.position.set(18, 30, 14);
 sun.castShadow = true;
 sun.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
@@ -247,7 +247,7 @@ sun.shadow.camera.far  = 120;
 sun.shadow.bias = -0.001;
 scene.add(sun);
 
-const fill = new THREE.DirectionalLight(0x7799cc, 0.18);
+const fill = new THREE.DirectionalLight(0x88aadd, 0.18);
 fill.position.set(-14, 8, -16);
 scene.add(fill);
 
@@ -331,39 +331,40 @@ function makeGreenTexture() {
   c.width = c.height = size;
   const ctx = c.getContext('2d');
 
-  // Base: deep Augusta bentgrass
-  ctx.fillStyle = '#1e4d28';
+  // Base: realistic bentgrass putting surface
+  ctx.fillStyle = '#267535';
   ctx.fillRect(0, 0, size, size);
 
-  // Mow stripes — alternating bands, just ~4% tonal difference
-  const stripeW = 48;
+  // Mow stripes — subtle alternating light/dark bands
+  const stripeW = 44;
   for (let i = 0; i < size / stripeW; i++) {
-    ctx.fillStyle = i % 2 === 0 ? 'rgba(0,0,0,0.0)' : 'rgba(255,255,255,0.04)';
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(0,0,0,0.0)' : 'rgba(255,255,255,0.07)';
     ctx.fillRect(0, i * stripeW, size, stripeW);
   }
 
-  // Fine grain stipple
+  // Fine grain stipple — toned down
   for (let i = 0; i < 80000; i++) {
     const x = Math.random() * size, y = Math.random() * size;
     if (Math.random() < 0.5) {
-      ctx.fillStyle = `rgba(48,98,55,${0.04 + Math.random()*0.07})`;
+      ctx.fillStyle = `rgba(60,140,70,${0.03 + Math.random()*0.05})`;
     } else {
-      ctx.fillStyle = `rgba(6,22,10,${0.04 + Math.random()*0.08})`;
+      ctx.fillStyle = `rgba(8,32,12,${0.03 + Math.random()*0.05})`;
     }
     ctx.fillRect(x, y, 1, 1);
   }
 
-  // Faint dew sheen
-  for (let i = 0; i < 8; i++) {
+  // Subtle dew sheen — toned down
+  for (let i = 0; i < 10; i++) {
     const px = Math.random()*size, py = Math.random()*size, pr = 50+Math.random()*80;
     const grd = ctx.createRadialGradient(px,py,0,px,py,pr);
-    grd.addColorStop(0, 'rgba(180,220,200,0.025)');
+    grd.addColorStop(0, 'rgba(200,240,210,0.025)');
     grd.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = grd;
     ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2); ctx.fill();
   }
 
   const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(8, 8);
   return tex;
@@ -373,24 +374,27 @@ function makeRoughTexture() {
   const size = 256, c = document.createElement('canvas');
   c.width = c.height = size;
   const ctx = c.getContext('2d');
-  // Rough/collar: deeper, slightly warmer dark green — clearly different from the green
-  ctx.fillStyle = '#1a3d1e';
+  // Rough/collar: much darker — clear visual contrast with the bright green
+  ctx.fillStyle = '#173520';
   ctx.fillRect(0, 0, size, size);
-  for(let p=0;p<30;p++){
-    const px=(Math.random()*size), py=(Math.random()*size), pr=10+Math.random()*25;
+  // Dark patches for depth
+  for(let p=0;p<40;p++){
+    const px=(Math.random()*size), py=(Math.random()*size), pr=8+Math.random()*20;
     const grd=ctx.createRadialGradient(px,py,0,px,py,pr);
-    grd.addColorStop(0,'rgba(6,22,8,0.2)'); grd.addColorStop(1,'rgba(6,22,8,0)');
+    grd.addColorStop(0,'rgba(4,14,6,0.35)'); grd.addColorStop(1,'rgba(4,14,6,0)');
     ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2); ctx.fill();
   }
+  // Longer grass blade strokes — random angles for natural look
   const r=(a,b)=>a+Math.random()*(b-a);
-  for(let i=0;i<14000;i++){
-    const x=r(0,size), y=r(0,size), l=r(5,16), ang=r(-0.5,0.5)+Math.PI*1.5;
-    const dark=Math.random()>0.55;
-    ctx.strokeStyle=dark?`rgba(4,18,6,${r(0.07,0.18)})`:`rgba(38,90,30,${r(0.03,0.10)})`;
-    ctx.lineWidth=r(0.5,1.8);
+  for(let i=0;i<18000;i++){
+    const x=r(0,size), y=r(0,size), l=r(6,20), ang=r(-0.7,0.7)+Math.PI*1.5;
+    const dark=Math.random()>0.5;
+    ctx.strokeStyle=dark?`rgba(3,14,5,${r(0.10,0.22)})`:`rgba(30,80,25,${r(0.04,0.13)})`;
+    ctx.lineWidth=r(0.6,2.0);
     ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+Math.cos(ang)*l, y+Math.sin(ang)*l); ctx.stroke();
   }
   const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(14,14);
   return tex;
@@ -632,21 +636,25 @@ function addBunkers(g) {
   });
 }
 
-function makeOvalMask() {
+function makeOvalMask(gx, gz) {
   // Canvas alpha mask: white ellipse on black background.
-  // Used as alphaMap on the green material for oval greens so only the
-  // ellipse region shows — the rect PlaneGeometry corners are transparent.
+  // The canvas aspect ratio matches the green geometry (GX x GZ) so the
+  // ellipse fills exactly the UV space without distortion.
   const S = 512;
+  const aspect = gx / gz;
+  const W = aspect >= 1 ? S : Math.round(S * aspect);
+  const H = aspect >= 1 ? Math.round(S / aspect) : S;
   const c = document.createElement('canvas');
-  c.width = c.height = S;
+  c.width = W; c.height = H;
   const ctx = c.getContext('2d');
   ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, S, S);
+  ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#fff';
   ctx.beginPath();
-  ctx.ellipse(S/2, S/2, S/2 - 2, S/2 - 2, 0, 0, Math.PI*2);
+  ctx.ellipse(W/2, H/2, W/2 - 2, H/2 - 2, 0, 0, Math.PI*2);
   ctx.fill();
   const tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
   return tex;
 }
 
@@ -669,11 +677,41 @@ function buildGreen(g) {
   const sGeo = new THREE.PlaneGeometry(SSIZE, SSIZE, SSEGS, SSEGS);
   sGeo.rotateX(-Math.PI/2);
   const sPos = sGeo.attributes.position;
+  const hx2 = GX/2, hz2 = GZ/2;
   for (let i = 0; i < sPos.count; i++) {
-    sPos.setY(i, terrainHeightAt(g, sPos.getX(i), sPos.getZ(i)));
+    const sx = sPos.getX(i), sz = sPos.getZ(i);
+    // Check if vertex is inside the green footprint
+    let insideGreen = false;
+    if (g.shape === 'oval') {
+      const nx = sx / hx2, nz = sz / hz2;
+      insideGreen = (nx*nx + nz*nz) <= 1.0;
+    } else {
+      insideGreen = Math.abs(sx) <= hx2 && Math.abs(sz) <= hz2;
+    }
+    if (insideGreen) {
+      // Push to the green edge height — no mesh under the green
+      // Find nearest point on the green boundary
+      let ex2, ez2;
+      if (g.shape === 'oval') {
+        const nr = Math.sqrt((sx/hx2)*(sx/hx2) + (sz/hz2)*(sz/hz2));
+        if (nr < 0.001) { ex2 = hx2; ez2 = 0; }
+        else { ex2 = (sx/nr) * hx2; ez2 = (sz/nr) * hz2; }
+      } else {
+        const cx = Math.max(-hx2, Math.min(hx2, sx));
+        const cz = Math.max(-hz2, Math.min(hz2, sz));
+        // Move to nearest edge
+        const distToEdgeX = hx2 - Math.abs(cx);
+        const distToEdgeZ = hz2 - Math.abs(cz);
+        if (distToEdgeX < distToEdgeZ) { ex2 = sx < 0 ? -hx2 : hx2; ez2 = cz; }
+        else { ex2 = cx; ez2 = sz < 0 ? -hz2 : hz2; }
+      }
+      sPos.setY(i, heightAt(g, ex2, ez2));
+    } else {
+      sPos.setY(i, terrainHeightAt(g, sx, sz));
+    }
   }
   sGeo.computeVertexNormals();
-  const surroundMesh = new THREE.Mesh(sGeo, new THREE.MeshLambertMaterial({ map: roughTex }));
+  const surroundMesh = new THREE.Mesh(sGeo, new THREE.MeshLambertMaterial({ map: roughTex, color: 0xffffff }));
   surroundMesh.receiveShadow = true;
   scene.add(surroundMesh);
   greenObjects.push(surroundMesh);
@@ -686,28 +724,33 @@ function buildGreen(g) {
   greenGeo = new THREE.PlaneGeometry(GX, GZ, dynSeg, dynSeg);
   greenGeo.rotateX(-Math.PI/2);
   const pos = greenGeo.attributes.position;
+  // Lift green surface slightly above the surround mesh to prevent z-fighting
   for (let i = 0; i < pos.count; i++) {
-    pos.setY(i, heightAt(g, pos.getX(i), pos.getZ(i)));
+    pos.setY(i, heightAt(g, pos.getX(i), pos.getZ(i)) + GREEN_LIFT);
   }
   greenGeo.computeVertexNormals();
 
+  // Pre-create textures before material so they are fully painted
+  const greenTex = makeGreenTexture();
   let greenMat;
   if (g.shape === 'oval') {
     greenMat = new THREE.MeshLambertMaterial({
-      map: makeGreenTexture(),
-      alphaMap: makeOvalMask(),
+      color: 0xffffff,
+      map: greenTex,
+      alphaMap: makeOvalMask(GX, GZ),
       transparent: true,
-      alphaTest: 0.5,        // hard cutoff — no soft edge blending issues
+      alphaTest: 0.5,
       polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
     });
   } else {
     greenMat = new THREE.MeshLambertMaterial({
-      map: makeGreenTexture(),
+      color: 0xffffff,
+      map: greenTex,
       polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
     });
   }
 
@@ -716,15 +759,69 @@ function buildGreen(g) {
   scene.add(greenMesh);
   greenObjects.push(greenMesh);
 
+  // ── FRINGE / COLLAR ───────────────────────────────────────────────────────
+  // A slightly raised ring of mid-tone green surrounds the putting surface.
+  // It's visually between the bright green and the dark rough.
+  const fringeOuter = 5.5; // metres beyond the green edge
+  const FSEGS = isMobile ? 48 : 64;
+  const fGeo = new THREE.PlaneGeometry(GX + fringeOuter*2, GZ + fringeOuter*2, FSEGS, FSEGS);
+  fGeo.rotateX(-Math.PI / 2);
+  const fPos = fGeo.attributes.position;
+  for (let i = 0; i < fPos.count; i++) {
+    const fx = fPos.getX(i), fz = fPos.getZ(i);
+    // Fringe only covers the collar band — vertices inside the green surface
+    // match the green height; vertices beyond fringeOuter match the terrain.
+    let distInside = 0;
+    if (g.shape === 'oval') {
+      const nx = fx/(GX/2), nz = fz/(GZ/2);
+      const r2 = Math.sqrt(nx*nx+nz*nz);
+      distInside = 1.0 - r2; // positive inside, negative outside
+    } else {
+      const dx2 = Math.max(0, Math.abs(fx) - GX/2);
+      const dz2 = Math.max(0, Math.abs(fz) - GZ/2);
+      distInside = -(Math.sqrt(dx2*dx2+dz2*dz2));
+    }
+    const tFringe = Math.max(0, Math.min(1, (-distInside) / fringeOuter));
+    const greenH = heightAt(g, fx, fz) + GREEN_LIFT * (1 - tFringe);
+    const terrH  = terrainHeightAt(g, fx, fz);
+    fPos.setY(i, greenH * (1-tFringe) + terrH * tFringe);
+  }
+  fGeo.computeVertexNormals();
+  // Fringe canvas texture — mid-tone, slightly taller grass than the green
+  const fringeCanvas = document.createElement('canvas');
+  fringeCanvas.width = fringeCanvas.height = 256;
+  const fCtx = fringeCanvas.getContext('2d');
+  fCtx.fillStyle = '#257535';
+  fCtx.fillRect(0, 0, 256, 256);
+  for (let fi = 0; fi < 10000; fi++) {
+    const fx2 = Math.random()*256, fy2 = Math.random()*256;
+    const ang2 = (Math.random()-0.5)*0.8 + Math.PI*1.5;
+    const len2 = 4 + Math.random()*10;
+    fCtx.strokeStyle = Math.random()>0.5 ? `rgba(8,30,10,${0.08+Math.random()*0.12})` : `rgba(50,130,50,${0.04+Math.random()*0.08})`;
+    fCtx.lineWidth = 0.8 + Math.random()*1.2;
+    fCtx.beginPath(); fCtx.moveTo(fx2,fy2); fCtx.lineTo(fx2+Math.cos(ang2)*len2,fy2+Math.sin(ang2)*len2); fCtx.stroke();
+  }
+  const fringeTex = new THREE.CanvasTexture(fringeCanvas);
+  fringeTex.wrapS = fringeTex.wrapT = THREE.RepeatWrapping;
+  fringeTex.repeat.set(10, 10);
+  const fringeMesh = new THREE.Mesh(fGeo, new THREE.MeshLambertMaterial({
+    map: fringeTex, color: 0xffffff,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+  }));
+  fringeMesh.receiveShadow = true;
+  scene.add(fringeMesh);
+  greenObjects.push(fringeMesh);
+
   addBunkers(g);
   addTrees(g);
 }
 
+const GREEN_LIFT = 0.04; // must match the value used in buildGreen
 function buildMarkers(g) {
   if(holeGroup) scene.remove(holeGroup);
   if(ballMesh)  scene.remove(ballMesh);
   holeGroup = new THREE.Group();
-  const hy = heightAt(g, g.hole.x, g.hole.z);
+  const hy = heightAt(g, g.hole.x, g.hole.z) + GREEN_LIFT;
 
   const cup = new THREE.Mesh(
     new THREE.CylinderGeometry(0.27, 0.27, 0.22, 32),
@@ -749,23 +846,24 @@ function buildMarkers(g) {
   holeGroup.add(pole);
 
   const flagVerts = new Float32Array([
-    0,0,0,  0.75,-0.22,0,  0,-0.5,0
+    0,0,0,  0.95,-0.18,0,  0.88,-0.3,0,  0,-0.52,0
   ]);
   const flagGeo = new THREE.BufferGeometry();
   flagGeo.setAttribute('position', new THREE.BufferAttribute(flagVerts, 3));
+  flagGeo.setIndex([0,1,3, 1,2,3]);
   flagGeo.computeVertexNormals();
   const flag = new THREE.Mesh(
     flagGeo,
-    new THREE.MeshLambertMaterial({ color: 0xff2222, side: THREE.DoubleSide })
+    new THREE.MeshLambertMaterial({ color: 0xff1111, side: THREE.DoubleSide })
   );
   flag.position.set(g.hole.x, hy+2.38, g.hole.z);
   holeGroup.add(flag);
   scene.add(holeGroup);
 
-  const by = heightAt(g, g.ball.x, g.ball.z);
+  const by = heightAt(g, g.ball.x, g.ball.z) + GREEN_LIFT;
   ballMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.215, 20, 20),
-    new THREE.MeshLambertMaterial({ color: 0xffffff })
+    new THREE.SphereGeometry(0.215, 24, 24),
+    new THREE.MeshPhongMaterial({ color: 0xfafafa, specular: 0xffffff, shininess: 110, emissive: 0x111111 })
   );
   ballMesh.position.set(g.ball.x, by+0.215, g.ball.z);
   ballMesh.castShadow = true;
@@ -1094,7 +1192,9 @@ function tickBallAnim(now){
   }
 
   ballMesh.visible = true;
-  ballMesh.position.set(p.x, p.y + 0.215 + skidBounce, p.z);
+  // Add GREEN_LIFT so ball rides on the elevated green surface
+  const yLift = onGreenSurface(G, p.x, p.z) ? GREEN_LIFT : 0;
+  ballMesh.position.set(p.x, p.y + 0.215 + skidBounce + yLift, p.z);
 
   // ── Dynamic camera zoom ───────────────────────────────────────────────────
   // When the ball is moving fast and far from centre, zoom out so it stays
@@ -1246,6 +1346,15 @@ document.getElementById('btn-reset').addEventListener('click',reset);
 function render(now){
   requestAnimationFrame(render);
   if(animating) tickBallAnim(now);
+  // Gentle flag wave
+  if(holeGroup && holeGroup.children.length >= 4){
+    const flagMesh = holeGroup.children[3];
+    if(flagMesh){
+      const t = now * 0.001;
+      flagMesh.rotation.y = Math.sin(t * 1.8) * 0.18;
+      flagMesh.rotation.z = Math.sin(t * 2.3) * 0.06;
+    }
+  }
   drawAimOverlay();
   renderer.render(scene,camera);
 }
