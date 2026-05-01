@@ -205,7 +205,7 @@ const isMobile = ('ontouchstart' in window) || navigator.maxTouchPoints > 0 || w
 if (isMobile) {
   document.body.classList.add('is-mobile');
   document.getElementById('mobile-top').style.display = 'flex';
-  document.getElementById('desktop-diff').style.display = 'none';
+  const desktopDiff = document.getElementById('desktop-diff'); if (desktopDiff) desktopDiff.style.display = 'none';
   document.getElementById('power-block').style.display = 'none';
 }
 
@@ -1080,21 +1080,17 @@ function simulatePath(g, aimX, aimZ, overrideStrength) {
   //   Long (40 ft) :  ~5.4 m/s head → ~9.0 m/s ball
   //   Max lag putt :  ~7.5 m/s head → ~12.5 m/s ball
   //
-  // We map slider 0–100% to ball launch speed 0.5–12.5 m/s using:
-  //   v0 = 0.5 + (pwr²) * 12.0
+  // We map slider 0–100% to ball launch speed 0–7.5 m/s linearly:
+  //   v0 = pwr * 7.5
   // This gives:
-  //   5%  → 0.53 m/s  (barely moving tap-in)
-  //   20% → 0.98 m/s
-  //   50% → 3.50 m/s  (mid-range putt ~12 ft)
-  //   70% → 6.38 m/s
-  //  100% → 12.50 m/s (maximum lag putt ~40 ft)
-  //
-  // Validation: at Stimp 10 (a=0.550 m/s²), v₀=3.50 m/s rolls:
-  //   d = v₀²/(2a) = 12.25/1.1 ≈ 11.1 m = 36 ft ✓ (matches ~10 ft stimp → 36 ft)
-  // At v₀=12.5: d = 156.25/1.1 ≈ 142 ft (extreme, correct for max lag)
+  //   10% → 0.75 m/s  (gentle tap-in)
+  //   30% → 2.25 m/s  (short putt)
+  //   50% → 3.75 m/s  (medium putt ~15 ft)
+  //   75% → 5.63 m/s  (long putt ~30 ft)
+  //  100% → 7.50 m/s  (max lag putt ~40 ft)
   //
   const pwr = (overrideStrength !== undefined ? overrideStrength : strength) / 100;
-  const initSpeed = 0.5 + pwr * pwr * 12.0;
+  const initSpeed = pwr * 7.5;
   const params = getPhysParams();
 
   let x = g.ball.x, z = g.ball.z;
@@ -1234,24 +1230,44 @@ function worldToScreen(wx,wy,wz){
 function drawAimOverlay(){
   aimCtx.clearRect(0,0,aimCanvas.width,aimCanvas.height);
   if(!G||!aimPoint||animating) return;
-  const bs=worldToScreen(G.ball.x,heightAt(G,G.ball.x,G.ball.z)+GREEN_LIFT+BALL_RADIUS,G.ball.z);
-  const as=worldToScreen(aimPoint.x,heightAt(G,aimPoint.x,aimPoint.z)+GREEN_LIFT+BALL_RADIUS*0.5,aimPoint.z);
+
+  // Project ball center and aim point to screen
+  const ballCenter=worldToScreen(G.ball.x,heightAt(G,G.ball.x,G.ball.z)+GREEN_LIFT+BALL_RADIUS,G.ball.z);
+  const aimScreen=worldToScreen(aimPoint.x,heightAt(G,aimPoint.x,aimPoint.z)+GREEN_LIFT+BALL_RADIUS*0.5,aimPoint.z);
+
+  // Compute ball's screen-space radius by projecting a world point offset by BALL_RADIUS
+  const ballEdge=worldToScreen(G.ball.x+BALL_RADIUS,heightAt(G,G.ball.x,G.ball.z)+GREEN_LIFT+BALL_RADIUS,G.ball.z);
+  const screenR=Math.max(4, Math.hypot(ballEdge.x-ballCenter.x, ballEdge.y-ballCenter.y));
+
+  // Line starts at the edge of the ball's screen silhouette toward the aim point
+  const ldx=aimScreen.x-ballCenter.x, ldy=aimScreen.y-ballCenter.y, lmag=Math.hypot(ldx,ldy)||1;
+  const lineStart={x:ballCenter.x+(ldx/lmag)*screenR, y:ballCenter.y+(ldy/lmag)*screenR};
+
+  // DEBUG: red dot at projected ball center
+  aimCtx.save();
+  aimCtx.fillStyle='red';
+  aimCtx.beginPath(); aimCtx.arc(ballCenter.x, ballCenter.y, 5, 0, Math.PI*2); aimCtx.fill();
+  aimCtx.restore();
   aimCtx.save();
   aimCtx.strokeStyle='rgba(250,208,58,0.72)'; aimCtx.lineWidth=2;
   aimCtx.setLineDash([8,5]); aimCtx.shadowColor='rgba(250,208,58,0.45)'; aimCtx.shadowBlur=7;
-  aimCtx.beginPath(); aimCtx.moveTo(bs.x,bs.y); aimCtx.lineTo(as.x,as.y); aimCtx.stroke();
+  aimCtx.beginPath(); aimCtx.moveTo(lineStart.x,lineStart.y); aimCtx.lineTo(aimScreen.x,aimScreen.y); aimCtx.stroke();
   aimCtx.restore();
-  aimCtx.save();
+
+  // Draw aim dot
   const r=isMobile?12:9;
-  aimCtx.beginPath(); aimCtx.arc(as.x,as.y,r,0,Math.PI*2);
+  aimCtx.save();
+  aimCtx.beginPath(); aimCtx.arc(aimScreen.x,aimScreen.y,r,0,Math.PI*2);
   aimCtx.fillStyle='rgba(250,208,58,0.9)'; aimCtx.shadowColor='rgba(250,208,58,0.8)'; aimCtx.shadowBlur=14;
   aimCtx.fill(); aimCtx.strokeStyle='#fff'; aimCtx.lineWidth=1.5; aimCtx.stroke();
   aimCtx.restore();
+
+  // Draw crosshair ticks around aim dot
+  const s=isMobile?20:15;
   aimCtx.save();
   aimCtx.strokeStyle='rgba(255,255,255,0.5)'; aimCtx.lineWidth=1;
-  const s=isMobile?20:15;
   [[-s,0,-r-2,0],[r+2,0,s,0],[0,-s,0,-r-2],[0,r+2,0,s]].forEach(([x1,y1,x2,y2])=>{
-    aimCtx.beginPath(); aimCtx.moveTo(as.x+x1,as.y+y1); aimCtx.lineTo(as.x+x2,as.y+y2); aimCtx.stroke();
+    aimCtx.beginPath(); aimCtx.moveTo(aimScreen.x+x1,aimScreen.y+y1); aimCtx.lineTo(aimScreen.x+x2,aimScreen.y+y2); aimCtx.stroke();
   });
   aimCtx.restore();
 }
@@ -1289,6 +1305,149 @@ let animLippedOut = false; // tracks whether a lip-out occurred during anim
 // Sink animation constants
 const SINK_DURATION    = 0.55;  // seconds to fully drop into cup
 const CUP_SINK_BOTTOM  = CUP_DEPTH - BALL_RADIUS; // ball drops to rest on cup floor
+
+// ─── PUTTER ───────────────────────────────────────────────────────────────────
+let putterGroup = null;
+let putterSwinging = false;
+let putterStartTime = null;
+let putterOnImpact = null;
+
+// SWING_DURATION: time (s) from backswing start to impact
+const PUTTER_BACKSWING_DUR = 0.38;
+const PUTTER_FOLLOWTHROUGH_DUR = 0.32;
+const PUTTER_TOTAL_DUR = PUTTER_BACKSWING_DUR + PUTTER_FOLLOWTHROUGH_DUR;
+// Saved camera state for restoring after swing
+
+function buildPutter(g, aimPt, power) {
+  if(putterGroup){ scene.remove(putterGroup); putterGroup=null; }
+
+  const bx=g.ball.x, bz=g.ball.z;
+  const by=heightAt(g,bx,bz)+GREEN_LIFT+BALL_RADIUS;
+
+  // Angle from ball toward aim point
+  const dx=aimPt.x-bx, dz=aimPt.z-bz;
+  const aimAngleRad=Math.atan2(dz,dx);
+
+  putterGroup = new THREE.Group();
+
+  // Build everything in LOCAL space:
+  // +Z = toward aim (forward), putter starts behind ball at -Z
+
+  const shaftLength = 0.90;
+  const bladeOffset = -(BALL_RADIUS + 0.004); // blade just behind ball, in -Z
+
+  // ── Blade ─────────────────────────────────────────────────────────────────
+  const bladeGeo = new THREE.BoxGeometry(0.095, 0.020, 0.010);
+  const bladeMat = new THREE.MeshPhongMaterial({ color: 0xb8c8d8, specular: 0xffffff, shininess: 180 });
+  const bladeMesh = new THREE.Mesh(bladeGeo, bladeMat);
+  bladeMesh.position.set(0, 0, bladeOffset);
+  bladeMesh.castShadow = true;
+  putterGroup.add(bladeMesh);
+
+  // ── Shaft ──────────────────────────────────────────────────────────────────
+  const shaftGeo = new THREE.CylinderGeometry(0.006, 0.007, shaftLength, 8);
+  const shaftMat = new THREE.MeshPhongMaterial({ color: 0x888888, specular: 0xaaaaaa, shininess: 80 });
+  const shaftMesh = new THREE.Mesh(shaftGeo, shaftMat);
+  // Shaft rises straight up from blade position, tilted ~5° toward target (+Z)
+  shaftMesh.position.set(0, shaftLength * 0.5, bladeOffset + 0.02);
+  shaftMesh.rotation.x = -0.087; // 5° tilt forward
+  shaftMesh.castShadow = true;
+  putterGroup.add(shaftMesh);
+
+  // ── Grip ───────────────────────────────────────────────────────────────────
+  const gripGeo = new THREE.CylinderGeometry(0.013, 0.011, 0.25, 8);
+  const gripMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a, shininess: 20 });
+  const gripMesh = new THREE.Mesh(gripGeo, gripMat);
+  gripMesh.position.set(0, shaftLength - 0.10, bladeOffset + 0.04);
+  gripMesh.rotation.x = -0.087;
+  gripMesh.castShadow = true;
+  putterGroup.add(gripMesh);
+
+  // Place group at ball, rotate so local +Z faces aim direction
+  putterGroup.position.set(bx, by, bz);
+  putterGroup.rotation.y = -aimAngleRad + Math.PI * 0.5;
+
+  putterGroup.userData.aimAngle = aimAngleRad;
+  putterGroup.userData.pivotY = shaftLength * 0.92;
+  putterGroup.userData.baseRotY = putterGroup.rotation.y;
+  // Max backswing: ~8° at min power, ~42° at full
+  putterGroup.userData.maxBackswing = 0.14 + (power / 100) * 0.60;
+
+  scene.add(putterGroup);
+  return putterGroup;
+}
+
+function tickPutterAnim(now) {
+  if(!putterSwinging || !putterGroup) return false;
+  const elapsed = (now - putterStartTime) / 1000;
+  const aimAngleRad = putterGroup.userData.aimAngle;
+  const maxBack = putterGroup.userData.maxBackswing;
+  const pivotY = putterGroup.userData.pivotY;
+  const baseRotY = putterGroup.userData.baseRotY;
+
+  // Pendulum swing: backswing → impact → follow-through
+  let swingAngle;
+
+  if(elapsed < PUTTER_BACKSWING_DUR) {
+    const t = elapsed / PUTTER_BACKSWING_DUR;
+    const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+    swingAngle = maxBack * ease; // positive = blade swings back (away from hole)
+  } else {
+    const t2 = (elapsed - PUTTER_BACKSWING_DUR) / PUTTER_FOLLOWTHROUGH_DUR;
+    const clampedT = Math.min(1, t2);
+    const ease = clampedT < 0.25
+      ? 8*clampedT*clampedT*clampedT
+      : 1 - Math.pow(-2*clampedT+2, 3)/2;
+    swingAngle = maxBack - (maxBack * 1.55) * ease; // swings through to follow-through
+
+    if(clampedT >= 0.12 && putterOnImpact) {
+      const cb = putterOnImpact; putterOnImpact = null; cb();
+    }
+  }
+
+  // Pendulum: rotate group around a pivot at the top of the shaft.
+  // The swing is in the group's local XZ plane (local X axis = left-right of stroke).
+  // Reset to base Y rotation, then apply pendulum as local X tilt.
+  const ballX = G.ball.x, ballZ = G.ball.z;
+  const ballY = heightAt(G, ballX, ballZ) + GREEN_LIFT + BALL_RADIUS;
+
+  // Pivot offset in world space (straight up from ball)
+  const pivotWY = ballY + pivotY;
+
+  // Apply: move to pivot, rotate around local X (left/right axis of swing), move back
+  const q = new THREE.Quaternion();
+  // Base orientation: face aim direction
+  const baseQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, baseRotY, 0));
+  // Swing rotation: around local X axis (pendulum)
+  const swingQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), swingAngle);
+  q.multiplyQuaternions(baseQ, swingQ);
+
+  putterGroup.quaternion.copy(q);
+
+  // Reposition so pivot stays fixed at top of shaft above ball
+  const pivotLocal = new THREE.Vector3(0, pivotY, 0);
+  pivotLocal.applyQuaternion(q);
+  putterGroup.position.set(
+    ballX - pivotLocal.x,
+    pivotWY - pivotY - pivotLocal.y + pivotY,
+    ballZ - pivotLocal.z
+  );
+
+  if(elapsed >= PUTTER_TOTAL_DUR) {
+    if(putterOnImpact){ const cb=putterOnImpact; putterOnImpact=null; cb(); }
+    setTimeout(()=>{ if(putterGroup){ scene.remove(putterGroup); putterGroup=null; } }, 200);
+    putterSwinging = false;
+    return false;
+  }
+  return true;
+}
+
+function startPutterSwing(g, aimPt, power, onImpact) {
+  buildPutter(g, aimPt, power);
+  putterSwinging = true;
+  putterStartTime = performance.now();
+  putterOnImpact = onImpact;
+}
 
 function startBallAnim(pts, onDone, initSpeed, lippedOut){
   animPts=pts; animTimeIdx=0; trailLine=null; lastTimestamp=null; animCallback=onDone;
@@ -1441,22 +1600,26 @@ function putt(){
 
     setMsg('','');
     const pwr2 = strength / 100;
-    const shotInitSpeed = 0.5 + pwr2 * pwr2 * 12.0;
+    const shotInitSpeed = pwr2 * 7.5;
     const lippedOut = sim.result === 'lip';
-    startBallAnim(sim.pts, ()=>{
-      animating=false; aimPoint=null;
-      btn.textContent='PUTT'; btn.disabled=true;
-      const baseR = calcBaseOrbitR();
-      const zoomBackInterval = setInterval(()=>{
-        orbitR += (baseR - orbitR) * 0.08; updateCamera();
-        if(Math.abs(orbitR - baseR) < 0.3){ orbitR = baseR; updateCamera(); clearInterval(zoomBackInterval); }
-      }, 16);
-      const rt=msgs[sim.result]||['',''];
-      setMsg(rt[0],rt[1]);
-      document.getElementById('s-res').textContent=labels[sim.result]||sim.result;
-      document.getElementById('r-dist').textContent=(Math.hypot(sim.end.x-G.hole.x,sim.end.z-G.hole.z)).toFixed(1)+'m';
-      document.getElementById('result-row').style.display='flex';
-    }, shotInitSpeed, lippedOut);
+
+    // Start putter swing; ball animation fires at impact
+    startPutterSwing(G, capturedAim, strength, () => {
+      startBallAnim(sim.pts, ()=>{
+        animating=false; aimPoint=null;
+        btn.textContent='PUTT'; btn.disabled=true;
+        const baseR = calcBaseOrbitR();
+        const zoomBackInterval = setInterval(()=>{
+          orbitR += (baseR - orbitR) * 0.08; updateCamera();
+          if(Math.abs(orbitR - baseR) < 0.3){ orbitR = baseR; updateCamera(); clearInterval(zoomBackInterval); }
+        }, 16);
+        const rt=msgs[sim.result]||['',''];
+        setMsg(rt[0],rt[1]);
+        document.getElementById('s-res').textContent=labels[sim.result]||sim.result;
+        document.getElementById('r-dist').textContent=(Math.hypot(sim.end.x-G.hole.x,sim.end.z-G.hole.z)).toFixed(1)+'m';
+        document.getElementById('result-row').style.display='flex';
+      }, shotInitSpeed, lippedOut);
+    });
   }, 0);
 }
 
@@ -1506,6 +1669,8 @@ function calcBaseOrbitR() {
 function newGreen(){
   clearPaths(); G=makeTerrain(); buildGreen(G); buildMarkers(G);
   aimPoint=null; idealData=null; animating=false; showIdeal=false; pinIn=true;
+  putterSwinging=false; putterOnImpact=null;
+  if(putterGroup){ scene.remove(putterGroup); putterGroup=null; }
   document.getElementById('btn-pin').textContent='PIN IN';
   document.getElementById('btn-pin').className='btn';
   document.getElementById('btn-ideal').textContent='IDEAL LINE';
@@ -1523,8 +1688,12 @@ function newGreen(){
 function reset(){
   if(!G) return;
   clearPaths(); buildMarkers(G); aimPoint=null; animating=false;
-  animSinking=false;
+  animSinking=false; animPts=[]; animTimeIdx=0; lastTimestamp=null; animCallback=null;
+  putterSwinging=false; putterOnImpact=null;
+  if(putterGroup){ scene.remove(putterGroup); putterGroup=null; }
   if(ballMesh){ ballMesh.visible=true; ballMesh.scale.setScalar(1); }
+  orbitR = calcBaseOrbitR();
+  updateCamera();
   document.getElementById('btn-putt').disabled=true;
   document.getElementById('result-row').style.display='none';
   ['s-aim','s-res'].forEach(id=>document.getElementById(id).textContent='—');
@@ -1540,6 +1709,7 @@ document.getElementById('btn-reset').addEventListener('click',reset);
 // ─── RENDER LOOP ─────────────────────────────────────────────────────────────
 function render(now){
   requestAnimationFrame(render);
+  if(putterSwinging) tickPutterAnim(now);
   if(animating) tickBallAnim(now);
   // Gentle flag wave (only when pin is in)
   if(pinIn && holeGroup && holeGroup.children.length >= 6){
